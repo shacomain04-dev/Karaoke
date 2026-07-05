@@ -5,105 +5,48 @@ const Song = require('../models/Song');
 // Search songs
 router.get('/search', async (req, res) => {
   try {
-    const { q, limit = 20, page = 1 } = req.query;
-
-    if (!q) {
-      return res.status(400).json({ error: 'Search query required' });
+    const query = req.query.q;
+    if (!query) {
+      return res.json({ songs: [] });
     }
 
-    const skip = (page - 1) * limit;
-
-    // Text search or regex search
     const songs = await Song.find({
       $or: [
-        { title: { $regex: q, $options: 'i' } },
-        { artist: { $regex: q, $options: 'i' } }
+        { title: { $regex: query, $options: 'i' } },
+        { artist: { $regex: query, $options: 'i' } },
+        { genre: { $regex: query, $options: 'i' } }
       ]
-    })
-      .limit(parseInt(limit))
-      .skip(skip)
-      .sort({ rating: -1, views: -1 });
+    }).limit(20);
 
-    const total = await Song.countDocuments({
-      $or: [
-        { title: { $regex: q, $options: 'i' } },
-        { artist: { $regex: q, $options: 'i' } }
-      ]
-    });
-
-    res.json({
-      songs,
-      total,
-      page,
-      pages: Math.ceil(total / limit)
-    });
+    res.json({ songs });
   } catch (error) {
     console.error('Error searching songs:', error);
     res.status(500).json({ error: 'Failed to search songs' });
   }
 });
 
-// Get popular songs
-router.get('/popular', async (req, res) => {
+// Get all songs
+router.get('/', async (req, res) => {
   try {
-    const limit = req.query.limit || 20;
-
-    const songs = await Song.find()
-      .sort({ rating: -1, views: -1 })
-      .limit(parseInt(limit));
-
+    const songs = await Song.find().limit(100);
     res.json(songs);
   } catch (error) {
-    console.error('Error fetching popular songs:', error);
-    res.status(500).json({ error: 'Failed to fetch popular songs' });
+    console.error('Error fetching songs:', error);
+    res.status(500).json({ error: 'Failed to fetch songs' });
   }
 });
 
 // Get song by ID
-router.get('/:id', async (req, res) => {
+router.get('/:songId', async (req, res) => {
   try {
-    const song = await Song.findById(req.params.id);
-
+    const song = await Song.findById(req.params.songId);
     if (!song) {
       return res.status(404).json({ error: 'Song not found' });
     }
-
-    // Increment views
-    song.views += 1;
-    await song.save();
-
     res.json(song);
   } catch (error) {
     console.error('Error fetching song:', error);
     res.status(500).json({ error: 'Failed to fetch song' });
-  }
-});
-
-// Add new song (admin only)
-router.post('/add', async (req, res) => {
-  try {
-    const { title, artist, duration, genre, lyrics, videoUrl, youtubeId, imageUrl } = req.body;
-
-    const song = new Song({
-      title,
-      artist,
-      duration,
-      genre,
-      lyrics,
-      videoUrl,
-      youtubeId,
-      imageUrl
-    });
-
-    await song.save();
-
-    res.status(201).json({
-      success: true,
-      song
-    });
-  } catch (error) {
-    console.error('Error adding song:', error);
-    res.status(500).json({ error: 'Failed to add song' });
   }
 });
 
